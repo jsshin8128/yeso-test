@@ -1,3 +1,5 @@
 # Debate Frontend
 
-Simple React app to create and list debate rooms connected to a Spring Boot backend.
+Spring Boot 백엔드와 연동되는 간단한 React 기반 토론방 생성 및 조회 애플리케이션입니다.
+
+> 💡 이 레포지토리는 제가 백엔드 개발을 담당하면서, 기능 테스트와 연동 확인을 위해 간단히 구성한 프론트엔드입니다.
