@@ -1,15 +1,17 @@
-// src/components/DebateRoomDetail.jsx
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import styled, { keyframes, useTheme } from "styled-components";
 import ReactMarkdown from "react-markdown";
 import { Helmet } from "react-helmet";
+import useWebSocket from "../hooks/useWebSocket";
+import { v4 as uuidv4 } from "uuid";
 
 // — Animations
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 `;
+
 const spin = keyframes`
   to { transform: rotate(360deg); }
 `;
@@ -166,6 +168,17 @@ const CommentBtn = styled.button`
   }
 `;
 
+const ConnectionStatus = styled.span.attrs(({ connected }) => ({
+  $connected: connected,
+}))`
+  display: inline-block;
+  margin-left: 1rem;
+  font-size: 1.05rem;
+  font-weight: bold;
+  color: ${({ $connected, theme }) =>
+    $connected ? theme.secondary : "#b12a2a"};
+`;
+
 // Auth Stub
 function useAuth() {
   const [user, setUser] = useState(null);
@@ -176,23 +189,15 @@ function useAuth() {
 }
 
 // Comments Stub
-function useComments(roomId) {
+function useComments() {
   const [comments, setComments] = useState([]);
-  useEffect(() => {
-    const mock = [
-      { id: 1, author: "Alice", text: "첫 댓글이에요 😊" },
-      { id: 2, author: "Bob", text: "동의합니다!" },
-    ];
-    const timer = setTimeout(() => setComments(mock), 500);
-    return () => clearTimeout(timer);
-  }, [roomId]);
-
   return [comments, setComments];
 }
 
-// — Component
+// —  Main Component
 export default function DebateRoomDetail({ isDark, onToggleTheme }) {
   const { roomId } = useParams();
+  const numericRoomId = parseInt(roomId, 10);
   const navigate = useNavigate();
   const theme = useTheme();
   const user = useAuth();
@@ -200,14 +205,41 @@ export default function DebateRoomDetail({ isDark, onToggleTheme }) {
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [comments, setComments] = useComments(roomId);
+  const [comments, setComments] = useComments();
   const commentRef = useRef();
+
+  const handleReceivedMessage = useCallback(
+    (msg) => {
+      setComments((prev) => {
+        const exists = prev.some((c) => c.messageId === msg.messageId);
+        if (exists) return prev;
+        return [
+          ...prev,
+          {
+            id: msg.messageId,
+            author: msg.sender,
+            text: msg.message,
+            timestamp: msg.timestamp,
+            messageId: msg.messageId,
+          },
+        ];
+      });
+    },
+    [setComments]
+  );
+
+  const { sendMessage, isConnected, participantsCount } = useWebSocket(
+    numericRoomId,
+    handleReceivedMessage
+  );
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch(`http://localhost:8080/debate/rooms/${roomId}`);
+        const res = await fetch(
+          `http://localhost:8080/debate/rooms/${numericRoomId}`
+        );
         if (!res.ok) throw new Error();
         const data = await res.json();
         if (mounted) setRoom(data);
@@ -217,16 +249,30 @@ export default function DebateRoomDetail({ isDark, onToggleTheme }) {
         if (mounted) setLoading(false);
       }
     })();
-    return () => { mounted = false; };
-  }, [roomId]);
+    return () => {
+      mounted = false;
+    };
+  }, [numericRoomId]);
 
   const handleComment = (e) => {
     e.preventDefault();
     if (!user) return alert("로그인이 필요합니다.");
     const text = commentRef.current.value.trim();
     if (!text) return;
-    const newComment = { id: Date.now(), author: user.name, text };
-    setComments((prev) => [...prev, newComment]);
+    if (!isConnected) return alert("서버 연결 준비 중입니다.");
+
+    const now = new Date().toISOString();
+    const messageId = uuidv4();
+
+    sendMessage({
+      roomId: numericRoomId,
+      sender: user.name,
+      senderId: user.id,
+      message: text,
+      timestamp: now,
+      messageId,
+    });
+
     commentRef.current.value = "";
   };
 
@@ -244,8 +290,13 @@ export default function DebateRoomDetail({ isDark, onToggleTheme }) {
           <div>
             <NavButton onClick={() => navigate(-1)}>← 뒤로가기</NavButton>
           </div>
-          <div>
-            <NavButton onClick={onToggleTheme}>{isDark ? "☀️ 밝게" : "🌙 어둡게"}</NavButton>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <NavButton onClick={onToggleTheme}>
+              {isDark ? "☀️ 밝게" : "🌙 어둡게"}
+            </NavButton>
+            <ConnectionStatus connected={isConnected}>
+              {isConnected ? "🟢 연결됨" : "🔴 끊김"}
+            </ConnectionStatus>
           </div>
         </Header>
 
@@ -262,9 +313,7 @@ export default function DebateRoomDetail({ isDark, onToggleTheme }) {
               minute: "2-digit",
             })}
           </Meta>
-          <Participants>
-            참여자: {room.participantsCount || 1}명
-          </Participants>
+          <Participants>참여자: {participantsCount}명</Participants>
           <Description>
             <ReactMarkdown>{room.description}</ReactMarkdown>
           </Description>
@@ -273,14 +322,17 @@ export default function DebateRoomDetail({ isDark, onToggleTheme }) {
             <h2 style={{ marginBottom: "1rem" }}>💬 토론 댓글</h2>
             <CommentList>
               {comments.map((c) => (
-                <CommentItem key={c.id}>
+                <CommentItem key={c.messageId || c.id}>
                   <strong>{c.author}</strong>
                   {c.text}
                 </CommentItem>
               ))}
             </CommentList>
             <CommentForm onSubmit={handleComment}>
-              <CommentInput ref={commentRef} placeholder="댓글을 입력하세요..." />
+              <CommentInput
+                ref={commentRef}
+                placeholder="댓글을 입력하세요..."
+              />
               <CommentBtn>전송</CommentBtn>
             </CommentForm>
           </CommentSection>
