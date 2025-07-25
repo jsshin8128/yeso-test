@@ -1,4 +1,3 @@
-// src/hooks/useWebSocket.js
 import { useEffect, useRef, useState } from 'react';
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
@@ -11,13 +10,19 @@ import { Client } from '@stomp/stompjs';
 const useWebSocket = (roomId, onMessageReceived) => {
   const clientRef = useRef(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [participantsCount, setParticipantsCount] = useState(1);
+  const [participantsCount, setParticipantsCount] = useState(0);
 
   useEffect(() => {
     console.log('[WebSocket] 🔌 Initializing WebSocket for room:', roomId);
 
     let chatSubscription = null;
     let participantSubscription = null;
+
+    // prevent duplicate connections
+    if (clientRef.current?.active) {
+      console.warn('[WebSocket] ⚠️ Already connected. Skipping duplicate connection.');
+      return;
+    }
 
     const socket = new SockJS('http://localhost:8080/ws');
     const client = new Client({
@@ -29,7 +34,6 @@ const useWebSocket = (roomId, onMessageReceived) => {
         setIsConnected(true);
         clientRef.current = client;
 
-        // 채팅 메시지 구독
         chatSubscription = client.subscribe(`/topic/debate/${roomId}`, (message) => {
           console.log('[WebSocket] 📥 Received message:', message.body);
           try {
@@ -43,7 +47,6 @@ const useWebSocket = (roomId, onMessageReceived) => {
           }
         });
 
-        // 참가자 수 구독
         participantSubscription = client.subscribe(`/topic/debate/${roomId}/participants`, (message) => {
           const count = parseInt(message.body, 10);
           if (!isNaN(count)) {
@@ -61,21 +64,39 @@ const useWebSocket = (roomId, onMessageReceived) => {
       },
     });
 
+    clientRef.current = client;
     client.activate();
+
+    const handleBeforeUnload = () => {
+      console.log('[WebSocket] 🔒 beforeunload triggered');
+      if (clientRef.current) {
+        clientRef.current.deactivate();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       console.log('[WebSocket] 🧹 Cleaning up WebSocket connection...');
 
-      chatSubscription?.unsubscribe();
-      participantSubscription?.unsubscribe();
+      if (chatSubscription) {
+        chatSubscription.unsubscribe();
+        chatSubscription = null;
+      }
+      if (participantSubscription) {
+        participantSubscription.unsubscribe();
+        participantSubscription = null;
+      }
 
-      if (clientRef.current?.active) {
+      if (clientRef.current) {
         clientRef.current.deactivate().then(() => {
           console.log('[WebSocket] 🧼 Disconnected cleanly');
           clientRef.current = null;
           setIsConnected(false);
         });
       }
+
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [roomId, onMessageReceived]);
 

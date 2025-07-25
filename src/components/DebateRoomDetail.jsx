@@ -225,7 +225,7 @@ export default function DebateRoomDetail({ isDark, onToggleTheme }) {
         ];
       });
     },
-    [setComments]
+    []
   );
 
   const { sendMessage, isConnected, participantsCount } = useWebSocket(
