@@ -6,7 +6,19 @@ import { Helmet } from "react-helmet";
 import useWebSocket from "../hooks/useWebSocket";
 import { v4 as uuidv4 } from "uuid";
 
-// — Animations
+/**
+ * 고유한 브라우저 ID를 생성하거나 기존 ID를 반환
+ * @returns {string} 고유한 참가자 ID
+ */
+const getOrCreateParticipantId = () => {
+  let id = localStorage.getItem("participantId");
+  if (!id) {
+    id = crypto.randomUUID();  // UUID 생성
+    localStorage.setItem("participantId", id);
+  }
+  return id;
+};
+
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -16,18 +28,17 @@ const spin = keyframes`
   to { transform: rotate(360deg); }
 `;
 
-// — Styled Components
 const Wrapper = styled.div`
   min-height: 100vh;
   padding: 4rem 1.5rem;
   background: ${({ theme }) => theme.bodyBg};
   color: ${({ theme }) => theme.text};
   animation: ${fadeIn} 0.4s ease-out;
-  font-family: 'Source Sans Pro', sans-serif;
+  font-family: 'Pretendard', sans-serif;
 `;
 
 const Header = styled.header`
-  max-width: 760px;
+  max-width: 800px;
   margin: 0 auto 2rem;
   display: flex;
   justify-content: space-between;
@@ -35,46 +46,54 @@ const Header = styled.header`
 `;
 
 const NavButton = styled.button`
-  padding: 0.4rem 0.9rem;
-  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 1rem;
   border: 1px solid ${({ theme }) => theme.border};
   background: ${({ theme }) => theme.cardBg};
   color: ${({ theme }) => theme.text};
   font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  & + & { margin-left: 0.75rem; }
   &:hover {
-    background: ${({ theme }) => theme.secondary};
+    background: ${({ theme }) => theme.primary};
     color: white;
   }
-  & + & {
-    margin-left: 0.75rem;
+`;
+
+const DeleteButton = styled(NavButton)`
+  background-color: #ffe8e8;
+  color: #d33;
+  border-color: #f5b5b5;
+  &:hover {
+    background-color: #d33;
+    color: white;
   }
 `;
 
 const Container = styled.div`
-  max-width: 760px;
+  max-width: 800px;
   margin: 0 auto;
   background: ${({ theme }) => theme.cardBg};
   border: 1px solid ${({ theme }) => theme.border};
-  border-radius: 1rem;
-  padding: 2.5rem 2rem;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+  border-radius: 1.25rem;
+  padding: 2.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
 `;
 
 const Title = styled.h1`
-  font-family: 'Safira March', serif;
-  font-size: 2.75rem;
-  color: ${({ theme }) => theme.primary};
-  border-left: 5px solid ${({ theme }) => theme.secondary};
+  font-family: 'Pretendard', sans-serif;
+  font-size: 2.2rem;
+  color: ${({ theme }) => theme.text};
+  border-left: 5px solid ${({ theme }) => theme.primary};
   padding-left: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
 `;
 
 const Meta = styled.div`
-  font-size: 0.875rem;
-  color: #666;
-  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: ${({ theme }) => theme.text};
+  margin-bottom: 0.75rem;
 `;
 
 const Participants = styled.div`
@@ -93,8 +112,8 @@ const Description = styled.div`
 const Spinner = styled.div`
   width: 40px;
   height: 40px;
-  border: 4px solid ${({ theme }) => theme.border};
-  border-top-color: ${({ theme }) => theme.secondary};
+  border: 4px solid #ccc;
+  border-top-color: ${({ theme }) => theme.primary};
   border-radius: 50%;
   animation: ${spin} 1s linear infinite;
   margin: 5rem auto;
@@ -102,9 +121,9 @@ const Spinner = styled.div`
 
 const ErrorBox = styled.div`
   background: #ffecec;
-  color: #b12a2a;
+  color: #d33;
   padding: 1.25rem;
-  border-radius: 0.75rem;
+  border-radius: 1rem;
   text-align: center;
   margin: 2rem 0;
   font-size: 0.95rem;
@@ -121,17 +140,34 @@ const CommentList = styled.ul`
 `;
 
 const CommentItem = styled.li`
-  background: ${({ theme }) => theme.cardBg};
-  border: 1px solid ${({ theme }) => theme.border};
-  border-radius: 0.5rem;
-  padding: 0.8rem 1rem;
-  margin-bottom: 0.75rem;
+  display: flex;
+  justify-content: ${({ isOwn }) => (isOwn ? "flex-end" : "flex-start")};
+  margin-bottom: 1rem;
+`;
 
-  strong {
-    display: block;
-    color: ${({ theme }) => theme.primary};
-    margin-bottom: 0.25rem;
-  }
+const CommentBubble = styled.div`
+  background: ${({ isOwn }) => (isOwn ? "#fbe16b" : "#eee")};
+  color: ${({ isOwn }) => (isOwn ? "#000" : "#333")};
+  padding: 0.7rem 1rem;
+  border-radius: 1rem;
+  max-width: 60%;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+  font-family: 'Pretendard', sans-serif;
+`;
+
+const Timestamp = styled.span`
+  display: block;
+  font-size: 0.75rem;
+  color: #999;
+  margin-top: 0.25rem;
+  text-align: ${({ isOwn }) => (isOwn ? "right" : "left")};
+`;
+
+const TypingIndicator = styled.div`
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: #aaa;
+  font-style: italic;
 `;
 
 const CommentForm = styled.form`
@@ -143,58 +179,42 @@ const CommentInput = styled.input`
   flex: 1;
   padding: 0.65rem 1rem;
   border: 1px solid ${({ theme }) => theme.border};
-  border-radius: 0.5rem;
+  border-radius: 1rem;
   font-size: 1rem;
-  transition: 0.2s ease;
-
+  background: ${({ theme }) => theme.cardBg};
+  color: ${({ theme }) => theme.text};
   &:focus {
     outline: none;
-    border-color: ${({ theme }) => theme.secondary};
-    box-shadow: 0 0 0 3px rgba(73, 134, 231, 0.2);
+    border-color: ${({ theme }) => theme.primary};
+    box-shadow: 0 0 0 3px rgba(100, 150, 255, 0.15);
   }
 `;
 
 const CommentBtn = styled.button`
-  background: ${({ theme }) => theme.secondary};
+  background: ${({ theme }) => theme.primary};
   color: white;
   border: none;
-  border-radius: 0.5rem;
-  padding: 0 1.25rem;
+  border-radius: 1rem;
+  padding: 0 1.5rem;
   font-weight: bold;
+  font-family: 'Pretendard', sans-serif;
   cursor: pointer;
-  transition: 0.2s ease;
   &:hover {
-    background: ${({ theme }) => theme.primary};
+    background: ${({ theme }) => theme.secondary};
   }
 `;
 
-const ConnectionStatus = styled.span.attrs(({ connected }) => ({
-  $connected: connected,
+const ConnectionStatus = styled.span.attrs(({ $connected }) => ({
+  $connected: $connected,
 }))`
-  display: inline-block;
   margin-left: 1rem;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: bold;
-  color: ${({ $connected, theme }) =>
-    $connected ? theme.secondary : "#b12a2a"};
+  color: ${({ $connected }) => ($connected ? '#4caf50' : '#e53935')};
 `;
 
-// Auth Stub
-function useAuth() {
-  const [user, setUser] = useState(null);
-  useEffect(() => {
-    setUser({ id: 1, name: "홍길동" });
-  }, []);
-  return user;
-}
 
-// Comments Stub
-function useComments() {
-  const [comments, setComments] = useState([]);
-  return [comments, setComments];
-}
-
-// —  Main Component
+// — Main Component
 export default function DebateRoomDetail({ isDark, onToggleTheme }) {
   const { roomId } = useParams();
   const numericRoomId = parseInt(roomId, 10);
@@ -206,40 +226,53 @@ export default function DebateRoomDetail({ isDark, onToggleTheme }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [comments, setComments] = useComments();
+  const [typingUsers, setTypingUsers] = useState(new Set());
+  const [typingUser, setTypingUser] = useState(null);
   const commentRef = useRef();
 
-  const handleReceivedMessage = useCallback(
-    (msg) => {
-      setComments((prev) => {
-        const exists = prev.some((c) => c.messageId === msg.messageId);
-        if (exists) return prev;
-        return [
-          ...prev,
-          {
-            id: msg.messageId,
-            author: msg.sender,
-            text: msg.message,
-            timestamp: msg.timestamp,
-            messageId: msg.messageId,
-          },
-        ];
-      });
-    },
-    []
-  );
+  const handleReceivedMessage = useCallback((msg) => {
+    console.log("💬 수신 메시지:", msg);
+    const participantId = getOrCreateParticipantId();
+    console.log("🙋‍♂️ 내 participantId:", participantId, "보낸이 ID:", msg.senderId);
 
-  const { sendMessage, isConnected, participantsCount } = useWebSocket(
+    if (msg.type === "typing") {
+      if (msg.senderId !== participantId) {
+        setTypingUser({ id: msg.senderId, name: msg.sender });
+        setTimeout(() => setTypingUser(null), 3000);
+      }
+      return;
+    }
+    setComments((prev) => {
+      // sender + timestamp + message 조합으로 중복 판단
+      const exists = prev.some(
+        (c) => c.author === msg.sender && c.timestamp === msg.timestamp && c.text === msg.message
+      );
+      if (exists) return prev;
+      return [
+        ...prev,
+        {
+          id: msg.messageId,
+          author: msg.sender,
+          senderId: msg.senderId,
+          text: msg.message,
+          timestamp: msg.timestamp,
+          messageId: msg.messageId,
+        },
+      ];
+    });
+  }, [user]);
+
+  const { sendMessage, sendTyping, isConnected, participantsCount } = useWebSocket(
     numericRoomId,
-    handleReceivedMessage
+    handleReceivedMessage,
+    user
   );
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch(
-          `http://localhost:8080/debate/rooms/${numericRoomId}`
-        );
+        const res = await fetch(`http://localhost:8080/debate/rooms/${numericRoomId}`);
         if (!res.ok) throw new Error();
         const data = await res.json();
         if (mounted) setRoom(data);
@@ -256,24 +289,64 @@ export default function DebateRoomDetail({ isDark, onToggleTheme }) {
 
   const handleComment = (e) => {
     e.preventDefault();
-    if (!user) return alert("로그인이 필요합니다.");
     const text = commentRef.current.value.trim();
+
+    // 🔐 메시지 내용이 없으면 전송하지 않도록 필터링
     if (!text) return;
-    if (!isConnected) return alert("서버 연결 준비 중입니다.");
+    if (!user) {
+      alert("로그인이 필요합니다.");
+      return;
+    }
+    if (!isConnected) {
+      alert("서버 연결 준비 중입니다.");
+      return;
+    }
 
     const now = new Date().toISOString();
     const messageId = uuidv4();
+    const participantId = getOrCreateParticipantId();
 
     sendMessage({
       roomId: numericRoomId,
       sender: user.name,
-      senderId: user.id,
-      message: text,
+      senderId: participantId,
+      message: text, // ✅ null 아님
       timestamp: now,
       messageId,
     });
 
     commentRef.current.value = "";
+  };
+
+  // send typing message
+  const handleTyping = () => {
+    // 입력 중일 때만 타이핑 메시지 전송
+    if (!user || !isConnected) return;
+    const participantId = getOrCreateParticipantId();
+    sendTyping({
+      typing: true, // ← 중요: 서버 포맷에 맞춤
+      roomId: numericRoomId,
+      sender: user.name,
+      senderId: participantId,
+    });
+  };
+
+  const handleDeleteRoom = async () => {
+    const confirmed = window.confirm("정말로 이 토론방을 삭제하시겠습니까?");
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`http://localhost:8080/debate/rooms/${numericRoomId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error();
+      alert("삭제가 완료되었습니다.");
+      navigate("/");
+    } catch (err) {
+      alert("삭제 중 오류가 발생했습니다.");
+      console.error(err);
+    }
   };
 
   if (loading) return <Spinner aria-label="로딩 중" />;
@@ -294,7 +367,8 @@ export default function DebateRoomDetail({ isDark, onToggleTheme }) {
             <NavButton onClick={onToggleTheme}>
               {isDark ? "☀️ 밝게" : "🌙 어둡게"}
             </NavButton>
-            <ConnectionStatus connected={isConnected}>
+            <DeleteButton onClick={handleDeleteRoom}>🗑 삭제하기</DeleteButton>
+            <ConnectionStatus $connected={isConnected}>
               {isConnected ? "🟢 연결됨" : "🔴 끊김"}
             </ConnectionStatus>
           </div>
@@ -319,20 +393,41 @@ export default function DebateRoomDetail({ isDark, onToggleTheme }) {
           </Description>
 
           <CommentSection>
-            <h2 style={{ marginBottom: "1rem" }}>💬 토론 댓글</h2>
+            <h2 style={{ marginBottom: "1rem", fontFamily: 'Playfair Display', fontSize: '1.5rem' }}>💬 토론 댓글</h2>
+            {typingUser && typingUser.id !== getOrCreateParticipantId() && (
+              <TypingIndicator>
+                {typingUser.name} 님이 입력 중...
+              </TypingIndicator>
+            )}
             <CommentList>
-              {comments.map((c) => (
-                <CommentItem key={c.messageId || c.id}>
-                  <strong>{c.author}</strong>
-                  {c.text}
-                </CommentItem>
-              ))}
+              {comments.map((c) => {
+                const participantId = getOrCreateParticipantId();
+                const isOwn = String(c.senderId) === String(participantId);
+                console.log('[Debug] Message:', {
+                  messageId: c.messageId,
+                  senderId: c.senderId,
+                  participantId: participantId,
+                  isOwn: isOwn,
+                  author: c.author,
+                  text: c.text
+                });
+                return (
+                  <CommentItem key={c.messageId || c.id} isOwn={isOwn}>
+                    <CommentBubble isOwn={isOwn}>
+                      {c.text}
+                      <Timestamp isOwn={isOwn}>
+                        {new Date(c.timestamp).toLocaleTimeString("ko-KR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </Timestamp>
+                    </CommentBubble>
+                  </CommentItem>
+                );
+              })}
             </CommentList>
             <CommentForm onSubmit={handleComment}>
-              <CommentInput
-                ref={commentRef}
-                placeholder="댓글을 입력하세요..."
-              />
+              <CommentInput ref={commentRef} placeholder="댓글을 입력하세요..." onChange={handleTyping} />
               <CommentBtn>전송</CommentBtn>
             </CommentForm>
           </CommentSection>
@@ -340,4 +435,31 @@ export default function DebateRoomDetail({ isDark, onToggleTheme }) {
       </Wrapper>
     </>
   );
+}
+
+// Stub hooks
+function useAuth() {
+  const [user, setUser] = useState(null);
+  useEffect(() => {
+    const savedUser = localStorage.getItem("user");
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error("유저 정보 파싱 실패", e);
+        setUser(null);
+      }
+    } else {
+      // 로그인하지 않은 경우에도 고유한 userId 생성
+      const userId = localStorage.getItem('userId') || crypto.randomUUID();
+      localStorage.setItem('userId', userId);
+      setUser({ id: userId, name: "게스트" });
+    }
+  }, []);
+  return user;
+}
+
+function useComments() {
+  const [comments, setComments] = useState([]);
+  return [comments, setComments];
 }

@@ -2,25 +2,39 @@ import React, { useState, useEffect, useRef } from "react";
 import styled, { keyframes, useTheme } from "styled-components";
 import { useNavigate } from "react-router-dom";
 
-// — Animations
 const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 `;
 
-// — Styled Components
 const Container = styled.div`
-  max-width: 1000px;
+  max-width: 960px;
   margin: 0 auto;
   padding: 3rem 1.5rem;
-  position: relative;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  background: ${({ theme }) => theme.bodyBg};
+  color: ${({ theme }) => theme.text};
 `;
 
 const Heading = styled.h1`
-  font-family: 'Safira March', serif;
-  font-size: 3rem;
-  margin-bottom: 1rem;
+  font-size: 2.5rem;
+  margin-bottom: 2rem;
+  text-align: center;
+  color: ${({ theme }) => theme.heading};
+  font-weight: 700;
+  letter-spacing: -0.5px;
+`;
+
+const SubHeading = styled.h2`
+  font-size: 1.4rem;
+  margin: 3rem 0 1.5rem;
+  text-align: center;
   color: ${({ theme }) => theme.text};
+  font-weight: 500;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
 `;
 
 const ThemeToggle = styled.button`
@@ -29,128 +43,126 @@ const ThemeToggle = styled.button`
   right: 1.5rem;
   background: transparent;
   border: none;
-  color: ${({ theme }) => theme.text};
   font-size: 1.5rem;
   cursor: pointer;
+  color: ${({ theme }) => theme.text};
 `;
 
 const FormWrapper = styled.form`
   background: ${({ theme }) => theme.cardBg};
-  border: 1px solid ${({ theme }) => theme.border};
-  border-radius: 1rem;
+  border: 2px solid ${({ theme }) => theme.border};
+  border-radius: 1.25rem;
   padding: 2rem;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 1rem;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  margin-bottom: 2rem;
-  animation: ${fadeIn} 0.5s ease-out;
+  margin-bottom: 2.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  animation: ${fadeIn} 0.6s ease;
+`;
 
-  @media (max-width: 640px) {
-    grid-template-columns: 1fr;
+const InputGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  @media (min-width: 640px) {
+    flex-direction: row;
   }
 `;
 
 const TextInput = styled.input`
-  padding: 0.75rem 1rem;
-  border: 1px solid ${({ theme }) => theme.border};
+  flex: 1;
+  padding: 0.9rem 1.2rem;
   border-radius: 0.75rem;
+  border: 2px solid ${({ theme }) => theme.border};
   font-size: 1rem;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  background: ${({ theme }) => theme.inputBg};
+  color: ${({ theme }) => theme.text};
   &:focus {
-    border-color: ${({ theme }) => theme.secondary};
-    box-shadow: 0 0 0 3px rgba(73, 134, 231, 0.2);
     outline: none;
+    border-color: ${({ theme }) => theme.accent};
+    box-shadow: 0 0 0 3px rgba(245, 231, 196, 0.2);
   }
 `;
 
 const CharCount = styled.div`
-  font-size: 0.8rem;
-  color: ${({ theme }) => theme.text};
-  grid-column: 1 / -1;
   text-align: right;
+  font-size: 0.85rem;
+  color: ${({ theme }) => theme.text};
+  opacity: 0.7;
+  margin-top: 0.5rem;
 `;
 
 const CreateButton = styled.button`
-  background: ${({ theme }) => theme.secondary};
-  color: #fff;
-  border: none;
-  padding: 0 1.5rem;
-  border-radius: 0.75rem;
-  font-weight: 600;
+  margin-top: 1rem;
+  background: ${({ theme }) => theme.accent};
+  color: ${({ theme }) => theme.bodyBg};
   font-size: 1rem;
-  cursor: pointer;
-  transition: background 0.3s, transform 0.2s;
-  &:disabled {
-    background: #ccc;
-    cursor: not-allowed;
-  }
-  &:hover:enabled {
-    background: ${({ theme }) => theme.primary};
-    transform: translateY(-2px);
-  }
-`;
-
-const SkeletonCard = styled.div`
-  background: ${({ theme }) => theme.border};
-  height: 100px;
+  font-weight: bold;
+  padding: 0.75rem 2rem;
   border-radius: 1rem;
-  animation: pulse 1.5s infinite;
-  @keyframes pulse {
-    0%   { opacity: 0.5; }
-    50%  { opacity: 1; }
-    100% { opacity: 0.5; }
+  border: none;
+  cursor: pointer;
+  font-family: 'Pretendard', sans-serif;
+  transition: background 0.2s;
+  &:hover:enabled {
+    filter: brightness(0.95);
+  }
+  &:disabled {
+    background: #666;
+    color: #bbb;
+    cursor: not-allowed;
   }
 `;
 
 const RoomList = styled.ul`
   list-style: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 2rem;
   padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.75rem;
 `;
 
 const RoomCard = styled.li`
   background: ${({ theme }) => theme.cardBg};
-  border: 1px solid ${({ theme }) => theme.border};
   border-radius: 1rem;
-  padding: 1rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  transition: transform 0.3s, box-shadow 0.3s;
+  padding: 1.25rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s;
   cursor: pointer;
+  border: 1px solid ${({ theme }) => theme.border};
   &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+    transform: translateY(-6px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
   }
 `;
 
 const RoomTitle = styled.h3`
-  font-size: 1.25rem;
-  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
+  font-family: 'Pretendard', sans-serif;
+  color: ${({ theme }) => theme.heading};
+  margin-bottom: 0.4rem;
 `;
 
 const RoomDesc = styled.p`
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: ${({ theme }) => theme.text};
+  opacity: 0.7;
+  font-style: italic;
 `;
 
 const Toast = styled.div`
   position: fixed;
   bottom: 1rem;
   right: 1rem;
-  background: ${({ error }) => (error ? '#E02424' : '#154797')};
-  color: #fff;
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.75rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  opacity: 0.9;
+  background: ${({ error, theme }) => (error ? '#E02424' : theme.toastBg)};
+  color: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: 1rem;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   z-index: 1000;
 `;
 
-
 export default function DebateRoom({ isDark, onToggleTheme }) {
-  const theme = useTheme();
   const [rooms, setRooms] = useState([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -159,7 +171,6 @@ export default function DebateRoom({ isDark, onToggleTheme }) {
   const toastTimeout = useRef(null);
   const navigate = useNavigate();
 
-  // Fetch rooms
   const fetchRooms = async (opt = false) => {
     if (!opt) setLoading(true);
     try {
@@ -175,14 +186,12 @@ export default function DebateRoom({ isDark, onToggleTheme }) {
 
   useEffect(() => { fetchRooms() }, []);
 
-  // Toast
   const showToast = (msg, error = false) => {
     setToast({ msg, error });
     clearTimeout(toastTimeout.current);
     toastTimeout.current = setTimeout(() => setToast(null), 3000);
   };
 
-  // Create room
   const handleSubmit = async e => {
     e.preventDefault();
     if (!title || !description) {
@@ -190,7 +199,7 @@ export default function DebateRoom({ isDark, onToggleTheme }) {
       return;
     }
     const newRoom = { id: Date.now(), title, description };
-    setRooms([newRoom, ...rooms]); // optimistic
+    setRooms([newRoom, ...rooms]);
     setTitle(""); setDescription("");
     try {
       const res = await fetch("http://localhost:8080/debate/rooms", {
@@ -208,38 +217,36 @@ export default function DebateRoom({ isDark, onToggleTheme }) {
 
   return (
     <Container>
-      <Heading>🗣 토론룸</Heading>
-      <ThemeToggle onClick={onToggleTheme} aria-label="Toggle Theme">
-        {isDark ? "☀️" : "🌙"}
-      </ThemeToggle>
+      <Heading>
+        🏛️ AGORA
+        <ThemeToggle onClick={onToggleTheme}>{isDark ? "☀️" : "🌙"}</ThemeToggle>
+      </Heading>
 
       <FormWrapper onSubmit={handleSubmit}>
-        <TextInput
-          type="text"
-          placeholder="제목 (≤50자)"
-          value={title}
-          onChange={e => e.target.value.length <= 50 && setTitle(e.target.value)}
-        />
-        <TextInput
-          type="text"
-          placeholder="설명 (≤200자)"
-          value={description}
-          onChange={e => e.target.value.length <= 200 && setDescription(e.target.value)}
-        />
+        <InputGroup>
+          <TextInput
+            type="text"
+            placeholder="제목 (≤50자)"
+            value={title}
+            onChange={e => e.target.value.length <= 50 && setTitle(e.target.value)}
+          />
+          <TextInput
+            type="text"
+            placeholder="설명 (≤200자)"
+            value={description}
+            onChange={e => e.target.value.length <= 200 && setDescription(e.target.value)}
+          />
+        </InputGroup>
         <CharCount>{title.length}/50, {description.length}/200</CharCount>
-        <CreateButton type="submit" disabled={loading}>
-          생성
-        </CreateButton>
+        <CreateButton type="submit" disabled={loading}>토론방 생성</CreateButton>
       </FormWrapper>
 
-      <Heading style={{ fontSize: "1.75rem" }}>현재 토론방</Heading>
+      <SubHeading>🗂️ 현재 토론방 목록</SubHeading>
 
       {loading ? (
-        <RoomList>
-          {Array(4).fill().map((_, i) => <SkeletonCard key={i} />)}
-        </RoomList>
+        <p>불러오는 중입니다...</p>
       ) : rooms.length === 0 ? (
-        <p>등록된 토론방이 없습니다.</p>
+        <p>아직 생성된 토론방이 없습니다.</p>
       ) : (
         <RoomList>
           {rooms.map(r => (
