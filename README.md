@@ -1,4 +1,4 @@
-# Debate Frontend
+# Frontend for testing
 
 Spring Boot 백엔드와 연동되는 간단한 React 기반 토론방 생성 및 조회 애플리케이션입니다.
 
